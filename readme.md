@@ -6,7 +6,49 @@ An AI-powered enterprise data analyst that allows users to ask questions about c
 
 The agent can reason about a user's question, select the appropriate tools, retrieve information, analyze the results, and provide a final answer.
 
-## System Flow
+## Current Iteration (Implemented)
+
+The current iteration is a command-line, tool-calling agent. It uses a Google Generative AI chat model configured through the `MODEL` environment variable and exposes two tools:
+
+* `get_sales_data` returns the current sample sales data.
+* `calculate` evaluates a mathematical expression.
+
+The conversation stores its message history and allows up to 10 model/tool iterations for each question. SQL, RAG, Python/Pandas analysis, and enterprise data platforms are part of the target architecture, but are not implemented in this iteration.
+
+### Current Iteration Architecture
+
+```text
+Command Line Interface
+      |  user input and final output
+      v
+Conversation
+      |  message history and iteration limit (10)
+      v
+Google Generative AI Model
+      |  tool calls or final response
+      v
+Tool Dispatcher / Tool Map
+      |
+      +-------------------------+
+      |                         |
+      v                         v
+get_sales_data           calculate
+src/tools/basic_tools.py
+```
+
+### Current Iteration Flow
+
+1. The CLI accepts a user question and adds it to the conversation as a `HumanMessage`.
+2. The tool-capable model receives the conversation history.
+3. If the model returns no tool calls, its response is returned as the final answer.
+4. If the model requests tools, the dispatcher looks up and invokes each requested tool.
+5. Each tool result is added to the conversation as a `ToolMessage`.
+6. The model is invoked again with the updated history, repeating until it returns a final answer.
+7. The conversation stops with an error if the 10-iteration limit is exceeded; tool and conversation errors are surfaced by the CLI.
+
+## Target System Flow
+
+The following flow describes the desired architecture beyond the current iteration:
 
 ```text
 User
@@ -50,7 +92,7 @@ AI Agent
          +-------> Agent
 ```
 
-## Functional Requirements
+## Target Functional Requirements
 
 ### 1. Natural Language Queries
 
@@ -130,7 +172,7 @@ The system should handle:
 
 The agent should not generate an answer based on failed or unavailable data without making this clear.
 
-## Non-Functional Requirements
+## Target Non-Functional Requirements
 
 ### 1. Performance
 
