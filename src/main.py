@@ -5,6 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage 
 
 from tools.basic_tools import get_sales_data, calculate
+from tools.sql_tools import query_database
 
 load_dotenv()
 
@@ -18,11 +19,13 @@ llm = ChatGoogleGenerativeAI(
 tools = [
     get_sales_data,
     calculate,
+    query_database,
 ]
 
 tool_map = {
     "get_sales_data": get_sales_data,
     "calculate": calculate,
+    "query_database": query_database,
 }
 
 llm_with_tools = llm.bind_tools(tools)
