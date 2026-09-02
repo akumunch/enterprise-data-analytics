@@ -5,7 +5,7 @@ from langchain_core.tools import tool
 
 FORBIDDEN_KEYWORDS = [
     "DROP", "DELETE", "UPDATE", "INSERT", "ALTER",
-    "TRUNCATE", "CREATE", "GRANT", "REVOKE"
+    "TRUNCATE", "CREATE", "GRANT", "REVOKE",
 ]
 
 def _get_connection():
@@ -35,20 +35,19 @@ def query_database(sql_query: str) -> str:
     customer_demographics, customers, employee_territories, employees, order_details, orders,
     products, region, shippers, suppliers, territories, us_states.
     """
+    # Validate query safety using the shared validation function
+    error = validate_select_only(sql_query)
+    if error:
+        return error
+    
     stripped = sql_query.strip().rstrip(";")
-
-    if not stripped.upper().startswith("SELECT"):
-        return "Error: Only SELECT queries are allowed."
-
-    for keyword in FORBIDDEN_KEYWORDS:
-        if re.search(rf"\b{keyword}\b", stripped, re.IGNORECASE):
-            return f"Error: '{keyword}' is not permitted in queries."
+    
     try:
         with _get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(stripped)
                     columns = [desc[0] for desc in cur.description]
-                    rows = cur.fetchmany(50)
+                    rows = cur.fetchmany(50) #to prevent huge responses - enough for context
 
                 if not rows:
                     return "Query returned no results."

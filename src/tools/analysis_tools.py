@@ -1,7 +1,7 @@
 import os
 import uuid
 import matplotlib
-matplotlib.use("Agg")  # no display needed, just save to file
+matplotlib.use("Agg")  # (just save to file without display) Needed for headless environments (servers, cloud functions)
 import matplotlib.pyplot as plt
 import pandas as pd
 from langchain_core.tools import tool

@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage 
 
-from tools.basic_tools import get_sales_data, calculate
 from tools.sql_tools import query_database
 from tools.analysis_tools import generate_chart
 
@@ -18,15 +17,11 @@ llm = ChatGoogleGenerativeAI(
 )
 
 tools = [
-    get_sales_data,
-    calculate,
     query_database,
     generate_chart,
 ]
 
 tool_map = {
-    "get_sales_data": get_sales_data,
-    "calculate": calculate,
     "query_database": query_database,
     "generate_chart": generate_chart,
 }
@@ -63,11 +58,7 @@ def execute_tool_calls(response: AIMessage) -> list[ToolMessage]:
     return tool_messages
 
 class Conversation: 
-    def __init__(
-        self,
-        model,
-        max_iterations: int = 10,
-    ):
+    def __init__(self, model, max_iterations: int = 10, ):
         self.model = model 
         self.messages = [] #chat history 
         self.max_iterations = max_iterations
@@ -76,7 +67,7 @@ class Conversation:
         self.messages.append(HumanMessage(content=user_input))
 
         for _ in range(self.max_iterations):
-            response = self.model.invoke(self.messages)
+            response = self.model.invoke(self.messages) #google api receives full convo history
 
             if not isinstance(response, AIMessage):
                 raise TypeError("The model must return an AIMessage.")
