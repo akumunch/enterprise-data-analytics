@@ -6,6 +6,7 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 from tools.basic_tools import get_sales_data, calculate
 from tools.sql_tools import query_database
+from tools.analysis_tools import generate_chart
 
 load_dotenv()
 
@@ -20,12 +21,14 @@ tools = [
     get_sales_data,
     calculate,
     query_database,
+    generate_chart,
 ]
 
 tool_map = {
     "get_sales_data": get_sales_data,
     "calculate": calculate,
     "query_database": query_database,
+    "generate_chart": generate_chart,
 }
 
 llm_with_tools = llm.bind_tools(tools)

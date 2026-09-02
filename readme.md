@@ -8,12 +8,14 @@ The agent can reason about a user's question, select the appropriate tools, retr
 
 ## Current Iteration (Implemented)
 
-The current iteration is a command-line, tool-calling agent. It uses a Google Generative AI chat model configured through the `MODEL` environment variable and exposes two tools:
+The current iteration is a command-line, tool-calling agent. It uses a Google Generative AI chat model configured through the `MODEL` environment variable and exposes four tools:
 
 * `get_sales_data` returns the current sample sales data.
 * `calculate` evaluates a mathematical expression.
+* `query_database` executes read-only SELECT queries against the Northwind database with safety validation.
+* `generate_chart` creates line or bar charts from SQL query results and saves them as PNG files.
 
-The conversation stores its message history and allows up to 10 model/tool iterations for each question. SQL, RAG, Python/Pandas analysis, and enterprise data platforms are part of the target architecture, but are not implemented in this iteration.
+The conversation stores its message history and allows up to 10 model/tool iterations for each question. RAG and enterprise data platforms are part of the target architecture, but are not implemented in this iteration.
 
 ### Current Iteration Architecture
 
@@ -29,11 +31,20 @@ Google Generative AI Model
       v
 Tool Dispatcher / Tool Map
       |
-      +-------------------------+
-      |                         |
-      v                         v
-get_sales_data           calculate
-src/tools/basic_tools.py
+      +------------------------------------------+
+      |                  |                       |
+      v                  v                       v
+get_sales_data      calculate          query_database
+src/tools/basic_tools.py              src/tools/sql_tools.py
+                                              |
+                                              +---> Database (Northwind)
+                                              
+                                              |
+                                              v
+                                       generate_chart
+                                   src/tools/analysis_tools.py
+                                              |
+                                              +---> PNG Charts (charts/)
 ```
 
 ### Current Iteration Flow
@@ -45,6 +56,32 @@ src/tools/basic_tools.py
 5. Each tool result is added to the conversation as a `ToolMessage`.
 6. The model is invoked again with the updated history, repeating until it returns a final answer.
 7. The conversation stops with an error if the 10-iteration limit is exceeded; tool and conversation errors are surfaced by the CLI.
+
+### Implemented Tools (Iteration 2)
+
+#### 1. `query_database` (src/tools/sql_tools.py)
+Executes read-only SELECT queries against the Northwind database with comprehensive safety validation:
+* Enforces SELECT-only queries
+* Blocks destructive operations (DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE, etc.)
+* Returns query results as formatted text
+* Handles database errors gracefully
+
+Available tables: categories, customers, employees, orders, order_details, products, suppliers, and more.
+
+#### 2. `generate_chart` (src/tools/analysis_tools.py)
+Creates data visualizations from SQL query results:
+* Supports line charts and bar charts
+* Accepts SQL query, chart type, X/Y column names, and title
+* Uses pandas for data handling and matplotlib for rendering
+* Automatically generates unique PNG filenames
+* Saves charts to the `charts/` directory
+* Validates columns and data before rendering
+
+#### 3. `get_sales_data` (src/tools/basic_tools.py)
+Returns sample sales data for basic queries and demonstrations.
+
+#### 4. `calculate` (src/tools/basic_tools.py)
+Evaluates mathematical expressions for computational analysis.
 
 ## Target System Flow
 

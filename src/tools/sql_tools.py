@@ -17,6 +17,16 @@ def _get_connection():
         password=os.getenv("DB_PASSWORD"),
     )
 
+def validate_select_only(sql_query: str) -> str | None:
+    """Returns an error message if the query is unsafe, or None if it's fine."""
+    stripped = sql_query.strip().rstrip(";")
+    if not stripped.upper().startswith("SELECT"):
+        return "Error: Only SELECT queries are allowed."
+    for keyword in FORBIDDEN_KEYWORDS:
+        if re.search(rf"\b{keyword}\b", stripped, re.IGNORECASE):
+            return f"Error: '{keyword}' is not permitted in queries."
+    return None
+
 @tool
 def query_database(sql_query: str) -> str:
     """
