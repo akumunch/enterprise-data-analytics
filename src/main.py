@@ -2,12 +2,15 @@ import os
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage 
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
 
 from tools.sql_tools import query_database
 from tools.analysis_tools import generate_chart
-
+from prompts import SYSTEM_PROMPT
 load_dotenv()
+
+from tools.rag_tools import ingest_pdf, search_documents_tool
+
 
 model_name = os.getenv("MODEL")
 
@@ -16,19 +19,7 @@ llm = ChatGoogleGenerativeAI(
     temperature=0
 )
 
-tools = [
-    query_database,
-    generate_chart,
-]
-
-tool_map = {
-    "query_database": query_database,
-    "generate_chart": generate_chart,
-}
-
-llm_with_tools = llm.bind_tools(tools)
-
-def execute_tool_calls(response: AIMessage) -> list[ToolMessage]:
+def execute_tool_calls(response: AIMessage, tool_map: dict) -> list[ToolMessage]:
     tool_messages = []
 
     print(response.tool_calls)
@@ -58,10 +49,14 @@ def execute_tool_calls(response: AIMessage) -> list[ToolMessage]:
     return tool_messages
 
 class Conversation: 
-    def __init__(self, model, max_iterations: int = 10, ):
+    def __init__(self, model, client_id: str, tool_map: dict, max_iterations: int = 10,):
         self.model = model 
-        self.messages = [] #chat history 
+        self.client_id = client_id
+        self.tool_map = tool_map
         self.max_iterations = max_iterations
+
+        #chat history
+        self.messages = [SystemMessage(content=SYSTEM_PROMPT)]  
 
     def ask(self, user_input: str) -> str:
         self.messages.append(HumanMessage(content=user_input))
@@ -77,7 +72,7 @@ class Conversation:
             if not response.tool_calls:
                 return response.content
 
-            tool_messages = execute_tool_calls(response)
+            tool_messages = execute_tool_calls(response, self.tool_map)
 
             self.messages.extend(tool_messages)
 
@@ -87,7 +82,18 @@ class Conversation:
 
 
 def main():
-    conversation = Conversation(llm_with_tools)
+    client_id = "test_client_1"
+
+    search_documents = search_documents_tool(client_id)
+    tools = [query_database, generate_chart, search_documents,]
+    tool_map = {"query_database": query_database, "generate_chart": generate_chart, "search_documents": search_documents, }
+
+    llm_with_tools = llm.bind_tools(tools)
+
+    chunks_added = ingest_pdf("company_policy.pdf", client_id=client_id)
+    print(f"Ingested {chunks_added} chunks for {client_id}")
+
+    conversation = Conversation(llm_with_tools, tool_map=tool_map, client_id=client_id)
 
     print("Type 'exit' or 'quit' to stop.")
 
