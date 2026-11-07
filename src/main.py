@@ -22,8 +22,6 @@ llm = ChatGoogleGenerativeAI(
 def execute_tool_calls(response: AIMessage, tool_map: dict) -> list[ToolMessage]:
     tool_messages = []
 
-    print(response.tool_calls)
-
     for tool_call in response.tool_calls:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
@@ -99,8 +97,6 @@ def main():
 
     while True:
         user_input = input("\nYou: ").strip()
-
-        print(conversation.messages)
 
         if user_input.lower() in {"exit", "quit"}:
             print("Bye bye.")

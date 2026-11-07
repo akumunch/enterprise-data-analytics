@@ -8,14 +8,13 @@ The agent can reason about a user's question, select the appropriate tools, retr
 
 ## Current Iteration (Implemented)
 
-The current iteration is a command-line, tool-calling agent. It uses a Google Generative AI chat model configured through the `MODEL` environment variable and exposes four tools:
+The current iteration is a command-line, tool-calling agent. It uses a Google Generative AI chat model configured through the `MODEL` environment variable and exposes three tools:
 
-* `get_sales_data` returns the current sample sales data.
-* `calculate` evaluates a mathematical expression.
 * `query_database` executes read-only SELECT queries against the Northwind database with safety validation.
 * `generate_chart` creates line or bar charts from SQL query results and saves them as PNG files.
+* `search_documents` retrieves relevant chunks from a client's ingested PDF documents (RAG) using a Chroma vector store.
 
-The conversation stores its message history and allows up to 10 model/tool iterations for each question. RAG and enterprise data platforms are part of the target architecture, but are not implemented in this iteration.
+The conversation stores its message history and allows up to 10 model/tool iterations for each question. A system prompt ([src/prompts.py](src/prompts.py)) restricts the agent to answering only from tool results, not from general knowledge. Enterprise data platforms, multi-tenant upload, and caching are part of the target architecture, but are not implemented yet.
 
 ### Current Iteration Architecture
 
@@ -31,33 +30,34 @@ Google Generative AI Model
       v
 Tool Dispatcher / Tool Map
       |
-      +------------------------------------------+
-      |                  |                       |
-      v                  v                       v
-get_sales_data      calculate          query_database
-src/tools/basic_tools.py              src/tools/sql_tools.py
-                                              |
-                                              +---> Database (Northwind)
-                                              
-                                              |
-                                              v
-                                       generate_chart
-                                   src/tools/analysis_tools.py
-                                              |
-                                              +---> PNG Charts (charts/)
+      +--------------------+--------------------+
+      |                    |                    |
+      v                    v                    v
+query_database       generate_chart      search_documents
+src/tools/           src/tools/          src/tools/
+sql_tools.py         analysis_tools.py   rag_tools.py
+      |                    |                    |
+      v                    v                    v
+Northwind DB         PNG charts          Chroma vector store
+                     (charts/)           (chroma_db/, one
+                                         collection per client)
+                                                ^
+                                                |
+                                         ingest_pdf (company_policy.pdf)
 ```
 
 ### Current Iteration Flow
 
-1. The CLI accepts a user question and adds it to the conversation as a `HumanMessage`.
-2. The tool-capable model receives the conversation history.
-3. If the model returns no tool calls, its response is returned as the final answer.
-4. If the model requests tools, the dispatcher looks up and invokes each requested tool.
-5. Each tool result is added to the conversation as a `ToolMessage`.
-6. The model is invoked again with the updated history, repeating until it returns a final answer.
-7. The conversation stops with an error if the 10-iteration limit is exceeded; tool and conversation errors are surfaced by the CLI.
+1. On startup, `ingest_pdf` loads `company_policy.pdf` for the client. It is skipped if the client's collection already has documents.
+2. The CLI accepts a user question and adds it to the conversation as a `HumanMessage`.
+3. The tool-capable model receives the conversation history.
+4. If the model returns no tool calls, its response is returned as the final answer.
+5. If the model requests tools, the dispatcher looks up and invokes each requested tool.
+6. Each tool result is added to the conversation as a `ToolMessage`.
+7. The model is invoked again with the updated history, repeating until it returns a final answer.
+8. The conversation stops with an error if the 10-iteration limit is exceeded; tool and conversation errors are surfaced by the CLI.
 
-### Implemented Tools (Iteration 2)
+### Implemented Tools
 
 #### 1. `query_database` (src/tools/sql_tools.py)
 Executes read-only SELECT queries against the Northwind database with comprehensive safety validation:
@@ -77,11 +77,14 @@ Creates data visualizations from SQL query results:
 * Saves charts to the `charts/` directory
 * Validates columns and data before rendering
 
-#### 3. `get_sales_data` (src/tools/basic_tools.py)
-Returns sample sales data for basic queries and demonstrations.
+#### 3. `search_documents` (src/tools/rag_tools.py)
+Retrieval-augmented search over a client's documents:
+* `ingest_pdf` loads a PDF, splits it into chunks (800 characters, 150 overlap), embeds them with `gemini-embedding-001`, and stores them in Chroma
+* Each client gets a separate collection (`docs_<client_id>`) so documents are physically isolated per client
+* Ingestion is skipped if the collection already exists, and embeds in batches of 90 with a 60s pause to stay under the Gemini free-tier limit (100 embed requests/minute)
+* `search_documents` returns the top 6 most similar chunks; the model only ever sees these chunks, never the raw PDF
 
-#### 4. `calculate` (src/tools/basic_tools.py)
-Evaluates mathematical expressions for computational analysis.
+See [docs/lessons-learned.md](docs/lessons-learned.md) for issues hit while building these tools.
 
 ## Target System Flow
 
